@@ -1,0 +1,15 @@
+# Node dependencies
+node_modules/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python bytecode
+**/__pycache__/
+*.pyc
+
+# Environment variables (secrets)
+.env

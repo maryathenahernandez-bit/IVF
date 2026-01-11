@@ -1,0 +1,47 @@
+[
+  {
+    "id": "Derivatives-medium-9113",
+    "question": "Find the derivative: d/dx [x\u00b3]",
+    "answer": "3x\u00b2",
+    "explanation": "Using power rule: d/dx [x^n] = nx^(n-1), so 3x^(3-1) = 3x\u00b2",
+    "difficulty": "medium",
+    "topic": "Derivatives",
+    "grade": 12
+  },
+  {
+    "id": "Derivatives-medium-9691",
+    "question": "Find the derivative: d/dx [x\u00b3]",
+    "answer": "3x\u00b2",
+    "explanation": "Using power rule: d/dx [x^n] = nx^(n-1), so 3x^(3-1) = 3x\u00b2",
+    "difficulty": "medium",
+    "topic": "Derivatives",
+    "grade": 12
+  },
+  {
+    "id": "Derivatives-medium-8095",
+    "question": "Find the derivative: d/dx [x\u00b3]",
+    "answer": "3x\u00b2",
+    "explanation": "Using power rule: d/dx [x^n] = nx^(n-1), so 3x^(3-1) = 3x\u00b2",
+    "difficulty": "medium",
+    "topic": "Derivatives",
+    "grade": 12
+  },
+  {
+    "id": "Derivatives-medium-1898",
+    "question": "Find the derivative: d/dx [x\u00b3]",
+    "answer": "3x\u00b2",
+    "explanation": "Using power rule: d/dx [x^n] = nx^(n-1), so 3x^(3-1) = 3x\u00b2",
+    "difficulty": "medium",
+    "topic": "Derivatives",
+    "grade": 12
+  },
+  {
+    "id": "Derivatives-medium-8834",
+    "question": "Find the derivative: d/dx [x\u00b3]",
+    "answer": "3x\u00b2",
+    "explanation": "Using power rule: d/dx [x^n] = nx^(n-1), so 3x^(3-1) = 3x\u00b2",
+    "difficulty": "medium",
+    "topic": "Derivatives",
+    "grade": 12
+  }
+]
