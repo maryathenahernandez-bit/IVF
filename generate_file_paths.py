@@ -2,7 +2,7 @@ import os
 
 # Configuration
 root_folders = {
-    "IVF": r"D:\ivf",
+    "IVF": r"D:\ivf_coding\ivf",
 }
 excluded_folders = {"node_modules", ".angular", ".git", ".vscode", "android", "dist"}
 

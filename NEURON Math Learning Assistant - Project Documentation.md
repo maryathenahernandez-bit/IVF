@@ -54,7 +54,7 @@
 - **CORS**: Cross-origin support
 
 **AI Services:**
-- **OpenAI GPT-4o-mini**: Primary question generator
+- **OpenAI GPT-5-nano**: Primary question generator
 - **Ollama (llama3)**: Secondary generator
 - **Fallback System**: Hardcoded questions
 

@@ -12,18 +12,21 @@ type SessionResults = {
   score: number;
   total: number;
   timeSpent: number;
+  problems: any[]; // Add problems array
+  userAnswers: string[]; // Add user answers array
 };
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('grade');
-  // Default to Grade 11 so the viridian `grade-11` class is applied on load
   const [selectedGrade, setSelectedGrade] = useState<'grade11' | 'grade12'>('grade11');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
   const [sessionResults, setSessionResults] = useState<SessionResults>({ 
     score: 0, 
     total: 0, 
-    timeSpent: 0 
+    timeSpent: 0,
+    problems: [],
+    userAnswers: []
   });
 
   const handleSelectGrade = (grade: 'grade11' | 'grade12') => {
@@ -41,8 +44,8 @@ export default function App() {
     setScreen('session');
   };
 
-  const handleSessionComplete = (score: number, total: number, timeSpent: number) => {
-    setSessionResults({ score, total, timeSpent });
+  const handleSessionComplete = (score: number, total: number, timeSpent: number, problems: any[], userAnswers: string[]) => {
+    setSessionResults({ score, total, timeSpent, problems, userAnswers });
     setScreen('results');
   };
 
@@ -61,7 +64,6 @@ export default function App() {
   };
 
   const handleBackToGrades = () => {
-    // reset to default Grade 11 when returning to grade selection
     setSelectedGrade('grade11');
     setScreen('grade');
   };
@@ -114,6 +116,8 @@ export default function App() {
             topic={selectedTopic}
             difficulty={selectedDifficulty}
             timeSpent={sessionResults.timeSpent}
+            problems={sessionResults.problems}
+            userAnswers={sessionResults.userAnswers}
             onRestart={handleRestart}
             onNewTopic={handleNewTopic}
           />

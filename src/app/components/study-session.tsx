@@ -26,7 +26,7 @@ type StudySessionProps = {
   topic: string;
   difficulty: 'easy' | 'medium' | 'hard';
   grade?: number;
-  onComplete: (score: number, total: number, timeSpent: number) => void;
+  onComplete: (score: number, total: number, timeSpent: number, problems: MathProblem[], userAnswers: string[]) => void;
   onExit: () => void;
 };
 
@@ -34,6 +34,7 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
   const [problems, setProblems] = useState<MathProblem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
+  const [userAnswers, setUserAnswers] = useState<string[]>([]); // Track all user answers
   const [score, setScore] = useState(0);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -46,10 +47,10 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
   const [timerActive, setTimerActive] = useState(false);
 
   useEffect(() => {
-    // Reset session state
     setProblems([]);
     setCurrentIndex(0);
     setUserAnswer('');
+    setUserAnswers([]); // Reset user answers
     setScore(0);
     setShowFeedback(false);
     setIsCorrect(false);
@@ -59,7 +60,7 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
     setTotalQuestionsExpected(10);
     setAllQuestionsLoaded(false);
     setQuestionsReceived(0);
-    setTimerActive(false); // Reset timer state
+    setTimerActive(false);
 
     let mounted = true;
     let abortController = new AbortController();
@@ -72,7 +73,6 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
           topic,
           difficulty,
           grade,
-          // onQuestion callback - called each time a question arrives
           (question: MathProblem, index: number) => {
             if (!mounted || abortController.signal.aborted) return;
             
@@ -98,35 +98,30 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
             setProblems(prev => [...prev, mappedQuestion]);
             setQuestionsReceived(index + 1);
             
-            // Show UI and START TIMER after first question arrives
             if (index === 0 && loading) {
               setLoading(false);
-              setTimerActive(true); // Start timer when first question loads
+              setTimerActive(true);
               console.log('⏱️ Timer started - first question loaded');
             }
             
-            // If user is waiting for next question, restart timer
             if (index > 0 && index === currentIndex) {
               setTimerActive(true);
               console.log('⏱️ Timer restarted - next question loaded');
             }
           },
-          // onComplete callback - called when all questions are generated
           (total: number) => {
             if (!mounted || abortController.signal.aborted) return;
             console.log(`All ${total} questions received`);
             setAllQuestionsLoaded(true);
             setTotalQuestionsExpected(total);
           },
-          // onError callback
           (err: Error) => {
             if (!mounted || abortController.signal.aborted) return;
             console.error('Error loading questions:', err);
             setError('Failed to load questions. Please make sure the server is running.');
             setLoading(false);
-            setTimerActive(false); // Stop timer on error
+            setTimerActive(false);
           },
-          // Pass abort signal
           abortController.signal
         );
       } catch (err) {
@@ -141,20 +136,20 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
     return () => { 
       mounted = false;
       abortController.abort();
-      setTimerActive(false); // Stop timer on cleanup
+      setTimerActive(false);
       console.log('Study session cleanup: aborting question generation');
     };
   }, [topic, difficulty, grade]);
 
   useEffect(() => {
-    if (!timerActive) return; // Only run timer when active
+    if (!timerActive) return;
     
     const timer = setInterval(() => {
       setTimeSpent((prev) => prev + 1);
     }, 1000);
     
     return () => clearInterval(timer);
-  }, [timerActive]); // Re-run when timerActive changes
+  }, [timerActive]);
 
   const handleSubmit = () => {
     if (!userAnswer) return;
@@ -162,29 +157,28 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
     const expected = problems[currentIndex].answer;
     let correct = false;
 
-    if (typeof expected === 'number') {
-      const parsed = parseFloat(userAnswer.toString());
-      if (!Number.isNaN(parsed)) {
-        correct = Math.abs(parsed - expected) < 1e-6;
-      }
-    } else {
-      correct = String(expected).trim().toLowerCase() === String(userAnswer).trim().toLowerCase();
-    }
+    // Compare answers (case-insensitive, trim whitespace)
+    const userAnswerNormalized = String(userAnswer).trim().toUpperCase();
+    const expectedAnswerNormalized = String(expected).trim().toUpperCase();
+    
+    correct = userAnswerNormalized === expectedAnswerNormalized;
 
     setIsCorrect(correct);
     if (correct) {
       setScore((s) => s + 1);
     }
-    setShowFeedback(true);
     
-    // STOP TIMER when answer is submitted
+    // Store the user's answer
+    setUserAnswers(prev => [...prev, userAnswer]);
+    
+    setShowFeedback(true);
     setTimerActive(false);
     console.log('⏱️ Timer paused - answer submitted');
+    console.log('Answer check:', { userAnswer, expected, correct });
   };
 
   const handleNext = () => {
     if (currentIndex + 1 < problems.length) {
-      // Next question is ready - restart timer immediately
       setCurrentIndex((i) => i + 1);
       setUserAnswer('');
       setShowFeedback(false);
@@ -192,18 +186,15 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
       setTimerActive(true);
       console.log('⏱️ Timer restarted - next question ready');
     } else if (!allQuestionsLoaded) {
-      // User caught up to generation - wait for next question (timer stays paused)
       setUserAnswer('');
       setShowFeedback(false);
       setIsCorrect(false);
       setTimerActive(false);
       console.log('⏱️ Timer paused - waiting for next question to generate');
-      // Timer will restart when next question arrives (in onQuestion callback)
     } else {
-      // All questions loaded and answered - stop timer and show results
       setTimerActive(false);
       console.log('⏱️ Timer stopped - session complete');
-      onComplete(score, problems.length, timeSpent);
+      onComplete(score, problems.length, timeSpent, problems, userAnswers);
     }
   };
 
@@ -213,7 +204,6 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Check if we need to show "generating" state
   const needsMoreQuestions = !showFeedback && currentIndex >= problems.length && !allQuestionsLoaded;
   const showGeneratingNext = showFeedback && currentIndex + 1 >= problems.length && !allQuestionsLoaded;
 
@@ -355,15 +345,29 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
                       key={key}
                       onClick={() => {
                         setUserAnswer(key);
-                        setTimeout(() => handleSubmit(), 100);
+                        
+                        // Immediately check answer
+                        const expected = problems[currentIndex].answer;
+                        const userAnswerNormalized = String(key).trim().toUpperCase();
+                        const expectedAnswerNormalized = String(expected).trim().toUpperCase();
+                        const correct = userAnswerNormalized === expectedAnswerNormalized;
+
+                        setIsCorrect(correct);
+                        if (correct) {
+                          setScore((s) => s + 1);
+                        }
+                        
+                        setUserAnswers(prev => [...prev, key]);
+                        setShowFeedback(true);
+                        setTimerActive(false);
+                        console.log('⏱️ Timer paused - answer submitted');
+                        console.log('Answer check:', { userAnswer: key, expected, correct });
                       }}
                       variant="outline"
-                      className={`w-full h-auto py-4 px-6 text-left justify-start hover:bg-primary hover:text-white transition-colors ${
-                        userAnswer === key ? 'bg-primary text-white' : ''
-                      }`}
+                      className="w-full h-auto py-4 px-6 text-left justify-start hover:bg-primary hover:text-white transition-colors whitespace-normal"
                     >
-                      <span className="font-bold mr-4">{key}.</span>
-                      <span className="text-lg">{value}</span>
+                      <span className="font-bold mr-4 flex-shrink-0">{key}.</span>
+                      <span className="text-lg break-words">{value}</span>
                     </Button>
                   ))
                 ) : (
@@ -396,7 +400,6 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
                   )}
                 </div>
                 
-                {/* Show all answer options with highlighting */}
                 {currentProblem.options && (
                   <div className="space-y-3 max-w-2xl mx-auto">
                     {Object.entries(currentProblem.options).map(([key, value]) => {
@@ -414,15 +417,15 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
                               : 'bg-gray-50 border-gray-200'
                           }`}
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-start gap-3">
                             {isCorrectAnswer && (
-                              <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0" />
+                              <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
                             )}
                             {isUserAnswer && !isCorrect && (
-                              <XCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+                              <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
                             )}
-                            <span className="font-bold text-lg">{key}.</span>
-                            <span className={`text-lg flex-1 ${
+                            <span className="font-bold text-lg flex-shrink-0">{key}.</span>
+                            <span className={`text-lg flex-1 break-words ${
                               isCorrectAnswer ? 'font-semibold text-green-900' : 
                               isUserAnswer && !isCorrect ? 'text-red-900' : 
                               'text-gray-700'
@@ -430,12 +433,12 @@ export function StudySession({ topic, difficulty, grade = 11, onComplete, onExit
                               {value}
                             </span>
                             {isCorrectAnswer && (
-                              <span className="text-sm font-semibold text-green-700 px-3 py-1 bg-green-100 rounded-full">
+                              <span className="text-sm font-semibold text-green-700 px-3 py-1 bg-green-100 rounded-full flex-shrink-0">
                                 Correct
                               </span>
                             )}
                             {isUserAnswer && !isCorrect && (
-                              <span className="text-sm font-semibold text-red-700 px-3 py-1 bg-red-100 rounded-full">
+                              <span className="text-sm font-semibold text-red-700 px-3 py-1 bg-red-100 rounded-full flex-shrink-0">
                                 Your answer
                               </span>
                             )}
