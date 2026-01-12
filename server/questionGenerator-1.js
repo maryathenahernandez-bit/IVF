@@ -68,6 +68,46 @@ const MATH_TOPICS = {
   }
 };
 
+// Helper function to shuffle array
+function shuffleArray(array) {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+// Helper function to randomize options
+function randomizeOptions(correctAnswer, allOptions) {
+  if (!allOptions || Object.keys(allOptions).length === 0) {
+    return { options: allOptions, answer: correctAnswer };
+  }
+
+  // Get all option values
+  const optionValues = Object.values(allOptions);
+  
+  // Shuffle the values
+  const shuffledValues = shuffleArray(optionValues);
+  
+  // Find which position the correct answer ended up in
+  const correctValue = allOptions[correctAnswer];
+  const correctIndex = shuffledValues.indexOf(correctValue);
+  
+  // Map to A, B, C, D
+  const letters = ['A', 'B', 'C', 'D'];
+  const newOptions = {};
+  shuffledValues.forEach((value, index) => {
+    newOptions[letters[index]] = value;
+  });
+  
+  // Return new options and the new letter for the correct answer
+  return {
+    options: newOptions,
+    answer: letters[correctIndex]
+  };
+}
+
 export class MathQuestionGenerator {
   constructor(csvPath = null, ollamaUrl = null) {
     this.fallbackGenerator = new FallbackQuestionGenerator();
@@ -150,6 +190,27 @@ export class MathQuestionGenerator {
     formatted = formatted.replace(/∫∫+/g, '∫');
     formatted = formatted.replace(/\bintegral\s+integral\b/gi, 'integral');
     
+    // STEP 1.5: Fix common encoding issues
+    formatted = formatted.replace(/â†'/g, '→');
+    formatted = formatted.replace(/â\^'/g, '');
+    formatted = formatted.replace(/\$f\(x\)\s*=\s*â\^rac/g, '$f(x) = frac');
+    formatted = formatted.replace(/â\^/g, '');
+    formatted = formatted.replace(/\{\\lim\}/g, 'lim');
+    formatted = formatted.replace(/\\text\{lim\}/g, 'lim');
+    formatted = formatted.replace(/ext\\lim/g, 'lim');
+    
+    // Fix LaTeX-style limits
+    formatted = formatted.replace(/\\lim_\{([^}]+)\}/g, 'lim($1)');
+    formatted = formatted.replace(/lim_\{([^}]+)\}/g, 'lim($1)');
+    
+    // Fix fraction notation
+    formatted = formatted.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+    formatted = formatted.replace(/frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+    
+    // Fix sqrt
+    formatted = formatted.replace(/\\sqrt\{([^}]+)\}/g, '√($1)');
+    formatted = formatted.replace(/\\sqrt/g, '√');
+    
     // STEP 2: Superscript character mapping
     const superscriptMap = {
       '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', 
@@ -190,7 +251,7 @@ export class MathQuestionGenerator {
     
     // STEP 6: Math operators
     formatted = formatted.replace(/\*\*/g, '×');
-    formatted = formatted.replace(/sqrt\(/g, '√(');
+    formatted = formatted.replace(/\bsqrt\(/g, '√(');
     formatted = formatted.replace(/\binfinity\b/gi, '∞');
     
     // STEP 7: Calculus symbols
@@ -204,6 +265,15 @@ export class MathQuestionGenerator {
     
     // STEP 9: Arrows
     formatted = formatted.replace(/\s->\s/g, ' → ');
+    formatted = formatted.replace(/\s-->\s/g, ' → ');
+    
+    // STEP 10: Clean up extra dollar signs and curly braces
+    formatted = formatted.replace(/\$\$/g, '');
+    formatted = formatted.replace(/\$/g, '');
+    formatted = formatted.replace(/\\\(/g, '');
+    formatted = formatted.replace(/\\\)/g, '');
+    formatted = formatted.replace(/\\\[/g, '');
+    formatted = formatted.replace(/\\\]/g, '');
     
     return formatted;
   }
@@ -220,7 +290,7 @@ Use these symbols:
 - Exponents: ² ³ ⁴ ⁵
 - Math: × ÷ √ π ∞
 - Calculus: ∫ Σ →
-- Comparisons: ≥ ≤ ≠
+- Comparisons: ≥ ≤ ≠ 
 
 You must respond with ONLY a valid JSON object, no other text.`;
 
@@ -253,7 +323,7 @@ Respond with this exact JSON structure:
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 1,  // Set to 1 for more variety
+        temperature: 1,
         max_completion_tokens: 10000
       };
       
@@ -293,14 +363,7 @@ Respond with this exact JSON structure:
         }
       }
 
-      questionData.id = `${category}-${difficulty}-${Math.floor(Math.random() * 9000) + 1000}`;
-      questionData.difficulty = difficulty;
-      questionData.topic = category;
-      questionData.category = category;
-      questionData.subtopic = specificTopic;
-      questionData.grade = grade;
-      
-      // Ensure options exist, create default if missing
+      // Ensure options exist
       if (!questionData.options) {
         questionData.options = {
           A: questionData.answer || "Option A",
@@ -311,11 +374,22 @@ Respond with this exact JSON structure:
         questionData.answer = "A";
       }
       
+      // RANDOMIZE OPTIONS POSITION
+      const randomized = randomizeOptions(questionData.answer, questionData.options);
+      questionData.options = randomized.options;
+      questionData.answer = randomized.answer;
+      
+      questionData.id = `${category}-${difficulty}-${Math.floor(Math.random() * 9000) + 1000}`;
+      questionData.difficulty = difficulty;
+      questionData.topic = category;
+      questionData.category = category;
+      questionData.subtopic = specificTopic;
+      questionData.grade = grade;
+      
       if (questionData.question) {
         questionData.question = this.formatMathQuestion(questionData.question);
       }
       
-      // Format all options
       if (questionData.options) {
         Object.keys(questionData.options).forEach(key => {
           if (typeof questionData.options[key] === 'string') {
@@ -347,30 +421,37 @@ Respond with this exact JSON structure:
     const concept = topicData?.concept || '';
     const specificTopic = topicData?.topic || category;
 
-    const prompt = `Generate a ${difficulty} difficulty multiple choice question about ${specificTopic} for Grade ${grade}.
+    const prompt = `You are a math professor creating an exam question. Generate ONE ${difficulty} difficulty multiple choice question about ${specificTopic} for Grade ${grade}.
 
 ${concept ? `Concept: ${concept}` : ''}
-${refEq ? `Formula: ${refEq}` : ''}
-${keyRules ? `Rules: ${keyRules}` : ''}
+${refEq ? `Reference Formula: ${refEq}` : ''}
+${keyRules ? `Key Rules: ${keyRules}` : ''}
 
-Requirements:
-- Use Unicode symbols: ² ³ ⁴ π √ ∞ → × ÷ ≥ ≤
-- Create 4 answer choices (A, B, C, D)
-- Make wrong answers realistic (common mistakes)
-- Provide explanation
+CRITICAL REQUIREMENTS:
+1. The question MUST have ONE and ONLY ONE correct answer
+2. Calculate the answer yourself FIRST, then create the question
+3. Double-check your math before responding
+4. Wrong options should be plausible student mistakes, but definitely incorrect
+5. Use ONLY Unicode symbols: ² ³ ⁴ π √ ∞ → × ÷ ≥ ≤
+6. DO NOT USE LaTeX (no \\frac, \\sqrt, \\lim, $, etc.)
+7. Write limits as: lim(x→2) NOT \\lim_{x \\to 2}
+8. Write fractions as: (a)/(b) NOT \\frac{a}{b}
+9. Write square roots as: √(x) NOT \\sqrt{x}
 
-Respond ONLY with this JSON structure:
+Example correct format:
 {
-  "question": "question text",
+  "question": "Consider f(x) = x² - 4. What is lim(x→2) f(x)?",
   "options": {
-    "A": "first choice",
-    "B": "second choice",
-    "C": "third choice",
-    "D": "fourth choice"
+    "A": "0",
+    "B": "2",
+    "C": "4",
+    "D": "undefined"
   },
   "answer": "A",
-  "explanation": "why answer is correct"
-}`;
+  "explanation": "Direct substitution: f(2) = 2² - 4 = 4 - 4 = 0. Therefore lim(x→2) f(x) = 0."
+}
+
+Respond ONLY with valid JSON. No LaTeX. No other text.`;
 
     try {
       console.log(`  → [Ollama] Sending request...`);
@@ -381,7 +462,11 @@ Respond ONLY with this JSON structure:
           model: 'llama3',
           prompt: prompt,
           format: 'json',
-          stream: false
+          stream: false,
+          options: {
+            temperature: 0.3,  // Lower temperature for more accurate math
+            top_p: 0.9
+          }
         },
         { timeout: 0 }
       );
@@ -403,15 +488,12 @@ Respond ONLY with this JSON structure:
           questionData = result;
         }
 
-        // Validate and ensure options exist
         if (!questionData.options || typeof questionData.options !== 'object' || Object.keys(questionData.options).length === 0) {
           console.log(`  → [Ollama] No valid options, generating from answer`);
           
-          // Generate options based on the answer
           const correctAnswer = String(questionData.answer || "Correct Answer");
           let wrongAnswers = [];
           
-          // Try to generate intelligent wrong answers
           if (!isNaN(parseFloat(correctAnswer))) {
             const num = parseFloat(correctAnswer);
             wrongAnswers = [
@@ -420,7 +502,6 @@ Respond ONLY with this JSON structure:
               String(Math.round(num * 1.5 * 10) / 10)
             ];
           } else {
-            // For non-numeric answers, create generic options
             wrongAnswers = [
               "Alternative answer B",
               "Alternative answer C",
@@ -428,7 +509,6 @@ Respond ONLY with this JSON structure:
             ];
           }
           
-          // Shuffle and assign
           const allOptions = [correctAnswer, ...wrongAnswers];
           const shuffled = allOptions.sort(() => Math.random() - 0.5);
           const correctIndex = shuffled.indexOf(correctAnswer);
@@ -444,6 +524,11 @@ Respond ONLY with this JSON structure:
           
           console.log(`  → [Ollama] Created options: ${JSON.stringify(questionData.options)}`);
           console.log(`  → [Ollama] Correct answer is: ${questionData.answer}`);
+        } else {
+          // RANDOMIZE OPTIONS POSITION
+          const randomized = randomizeOptions(questionData.answer, questionData.options);
+          questionData.options = randomized.options;
+          questionData.answer = randomized.answer;
         }
 
         questionData.id = `${category}-${difficulty}-${Math.floor(Math.random() * 9000) + 1000}`;
@@ -457,7 +542,6 @@ Respond ONLY with this JSON structure:
           questionData.question = this.formatMathQuestion(questionData.question);
         }
         
-        // Format all options
         if (questionData.options) {
           Object.keys(questionData.options).forEach(key => {
             if (typeof questionData.options[key] === 'string') {
@@ -485,11 +569,9 @@ Respond ONLY with this JSON structure:
     const questionId = `${topic}-${difficulty}-${Math.floor(Math.random() * 9000) + 1000}`;
     const fallbackQ = this.fallbackGenerator.generateSingleQuestion(topic, difficulty, grade, questionId);
     
-    // Convert fallback to multiple choice format
     if (!fallbackQ.options) {
       const correctAnswer = String(fallbackQ.answer);
       
-      // Generate 3 wrong answers based on the correct answer
       let wrongAnswers = [];
       if (!isNaN(parseFloat(correctAnswer))) {
         const num = parseFloat(correctAnswer);
@@ -502,7 +584,6 @@ Respond ONLY with this JSON structure:
         wrongAnswers = ["Incorrect option 1", "Incorrect option 2", "Incorrect option 3"];
       }
       
-      // Shuffle and assign to A, B, C, D
       const allOptions = [correctAnswer, ...wrongAnswers];
       const shuffled = allOptions.sort(() => Math.random() - 0.5);
       const correctIndex = shuffled.indexOf(correctAnswer);
@@ -519,6 +600,11 @@ Respond ONLY with this JSON structure:
       if (!fallbackQ.explanation) {
         fallbackQ.explanation = "This is the correct answer based on the mathematical principles.";
       }
+    } else {
+      // RANDOMIZE OPTIONS POSITION for fallback questions too
+      const randomized = randomizeOptions(fallbackQ.answer, fallbackQ.options);
+      fallbackQ.options = randomized.options;
+      fallbackQ.answer = randomized.answer;
     }
     
     return fallbackQ;
@@ -546,7 +632,7 @@ Respond ONLY with this JSON structure:
 
   async generateQuestionsBatch(topic, difficulty, grade, count = 10) {
     console.log(`\n${'='.repeat(70)}`);
-    console.log(`📝 GENERATING ${count} QUESTIONS`);
+    console.log(`🔍 GENERATING ${count} QUESTIONS`);
     console.log(`   Category: "${topic}"`);
     console.log(`   Difficulty: ${difficulty}`);
     console.log(`   Grade: ${grade}`);
@@ -555,7 +641,6 @@ Respond ONLY with this JSON structure:
     
     const categoryTopics = this.getCategoryTopics(grade, topic);
 
-    // Track if OpenAI failed - if so, switch to Ollama for the rest
     let openAIFailed = false;
     let usingService = this.useOpenAI ? 'openai' : this.useOllama ? 'ollama' : 'fallback';
 
@@ -575,7 +660,6 @@ Respond ONLY with this JSON structure:
         
         const questionStart = Date.now();
         
-        // Try to generate question with current service
         let question;
         try {
           if (usingService === 'openai' && !openAIFailed) {
@@ -586,7 +670,6 @@ Respond ONLY with this JSON structure:
               openAIFailed = true;
               usingService = this.useOllama ? 'ollama' : 'fallback';
               
-              // Retry with new service
               if (usingService === 'ollama') {
                 question = await this.generateQuestionWithOllama(selectedTopicData, topic, difficulty, grade);
               } else {
